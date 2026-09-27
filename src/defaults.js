@@ -294,7 +294,7 @@ const builtInRules = [
         window: 6,
         skipWhen: null,
         cooldown: 6,
-        directive: '(OOC: Recent replies reuse the same phrases and sentence patterns. In this reply, use new wording and a different structure.)',
+        directive: '(OOC: Recent replies reuse the same phrases and sentence patterns. In this reply, use new wording and a different structure. {{jeved-repeats}})',
         script: '',
     },
     {

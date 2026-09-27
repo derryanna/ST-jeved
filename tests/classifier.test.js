@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { afterEach, describe, it } from 'node:test';
-import { HOSTS, classify, endpointWarning, errorKind, hostOf, isCancelled, provider, readScores } from '../src/classifier.js';
+import { HOSTS, classify, endpointWarning, errorKind, hasKey, hostOf, isCancelled, keylessHost, provider, readScores } from '../src/classifier.js';
 
 const realFetch = globalThis.fetch;
 afterEach(() => { globalThis.fetch = realFetch; });
@@ -202,11 +202,45 @@ describe('hosts', () => {
         assert.equal(hostOf(''), null);
     });
 
-    it('carries a hint only for the host that needs the proxy', () => {
+    it('carries a hint only for the hosts that route through this SillyTavern', () => {
         const proxied = HOSTS.filter(host => host.hint);
-        assert.deepEqual(proxied.map(host => host.id), ['typesafe']);
+        assert.deepEqual(proxied.map(host => host.id), ['typesafe', 'rout']);
         assert.match(proxied[0].hint, /enableCorsProxy/);
-        assert.ok(proxied[0].endpoint.startsWith('/'));
+        assert.match(proxied[1].hint, /jev-sensors/);
+        assert.ok(proxied.every(host => host.endpoint.startsWith('/')));
+    });
+
+    it('knows which host keeps its key on the server', () => {
+        const rout = hostOf('/api/plugins/jev-sensors/systemone');
+        assert.equal(rout.id, 'rout');
+        assert.equal(rout.model, 'typesafe/jev-latest');
+        assert.equal(keylessHost(rout.endpoint), true);
+        assert.equal(keylessHost(provider.defaults.endpoint), false);
+        assert.equal(hasKey({ apiKey: '', endpoint: rout.endpoint }), true);
+        assert.equal(hasKey({ apiKey: '', endpoint: provider.defaults.endpoint }), false);
+        assert.equal(hasKey({ apiKey: 'k', endpoint: provider.defaults.endpoint }), true);
+    });
+});
+
+describe('a keyless host', () => {
+    const rout = '/api/plugins/jev-sensors/systemone';
+
+    it('classifies with no key and sends no Authorization header', async () => {
+        let sent = null;
+        globalThis.fetch = (url, options) => {
+            sent = options.headers;
+            return reply({ answers: { tone: { score: 1 } } })(url, options);
+        };
+        const result = await classify({ ...base, apiKey: '', endpoint: rout, headers: () => ({ 'X-CSRF-Token': 'token' }) });
+        assert.deepEqual({ ...result.scores }, { tone: 1 });
+        assert.equal(sent.get('Authorization'), null);
+        assert.equal(sent.get('X-CSRF-Token'), 'token');
+    });
+
+    it('still refuses a keyed host without a key', async () => {
+        const error = await fails(() => classify({ ...base, apiKey: '' }));
+        assert.equal(error?.message, 'No API key is set.');
+        assert.equal(errorKind(error), 'config');
     });
 });
 

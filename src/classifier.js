@@ -23,11 +23,27 @@ export const HOSTS = [
         model: 'jev-1.13.0',
         hint: 'This route needs enableCorsProxy: true in your SillyTavern config.yaml.',
     },
+    {
+        id: 'rout',
+        label: 'Rout (jev-sensors plugin)',
+        endpoint: '/api/plugins/jev-sensors/systemone',
+        model: 'typesafe/jev-latest',
+        keyless: true,
+        hint: 'This route goes through the jev-sensors server plugin of this SillyTavern, which holds the Rout key. Leave the API key empty.',
+    },
 ];
 
 export function hostOf(endpoint) {
     const wanted = String(endpoint ?? '');
     return HOSTS.find(host => host.endpoint === wanted) ?? null;
+}
+
+export function keylessHost(endpoint) {
+    return !!hostOf(endpoint)?.keyless;
+}
+
+export function hasKey(settings) {
+    return !!settings?.apiKey || keylessHost(settings?.endpoint);
 }
 
 const RETRY_STATUS = new Set([429, 529]);
@@ -129,7 +145,11 @@ function headersFor(call) {
     const shared = String(call.endpoint).startsWith('/') ? call.headers?.() : null;
     const headers = new Headers(isRecord(shared) ? shared : {});
     headers.set('Content-Type', 'application/json');
-    headers.set('Authorization', `Bearer ${call.apiKey}`);
+    if (call.apiKey) {
+        headers.set('Authorization', `Bearer ${call.apiKey}`);
+    } else {
+        headers.delete('Authorization');
+    }
     return headers;
 }
 
@@ -196,7 +216,7 @@ export async function classify({ endpoint, apiKey, model, state, questions, time
     if (!endpoint) {
         throw new ClassifierError('No endpoint is set.', 'config');
     }
-    if (!apiKey) {
+    if (!apiKey && !keylessHost(endpoint)) {
         throw new ClassifierError('No API key is set.', 'config');
     }
 

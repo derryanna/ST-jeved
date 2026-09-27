@@ -85,7 +85,7 @@ describe('the commands Jeved registers', () => {
             context.commands.map(item => item.name).sort(),
             [
                 'jeved', 'jeved-ask', 'jeved-get', 'jeved-list', 'jeved-list-add', 'jeved-list-remove',
-                'jeved-nudge', 'jeved-pause', 'jeved-rescan',
+                'jeved-nudge', 'jeved-pause', 'jeved-repeats', 'jeved-rescan',
             ],
         );
     });
@@ -98,8 +98,8 @@ describe('the commands Jeved registers', () => {
 
     it('offers every tab of the workspace, in order', () => {
         const names = command('jeved').unnamedArgumentList[0].enumList.map(item => item.value);
-        assert.deepEqual(names, ['rules', 'sensors', 'lists', 'activity', 'settings']);
-        assert.match(command('jeved').helpString, /rules, sensors, lists, activity or settings/);
+        assert.deepEqual(names, ['rules', 'sensors', 'lists', 'repeats', 'activity', 'settings']);
+        assert.match(command('jeved').helpString, /rules, sensors, lists, repeats, activity or settings/);
     });
 });
 

@@ -1,3 +1,4 @@
+import { hasKey } from '../classifier.js';
 import { JEVED_UPDATED, describeError, isPaused, lastError, lastErrorKind, measureBlockReason, setPaused, status, testConnection } from '../engine.js';
 import { getSettings, normaliseSettings, saveSettings } from '../settings.js';
 import { toast } from '../toast.js';
@@ -127,7 +128,7 @@ function render() {
     const settings = getSettings();
     const children = [];
 
-    if (!settings.apiKey) {
+    if (!hasKey(settings)) {
         children.push(firstRun());
     }
 

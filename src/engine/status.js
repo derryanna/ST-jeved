@@ -1,4 +1,4 @@
-import { errorKind } from '../classifier.js';
+import { errorKind, hasKey } from '../classifier.js';
 import { listResolver } from '../lists.js';
 import { measuredSensors, missingIds, momentOf, sensorSignature } from '../sensors.js';
 import { getPreset, getSettings, schemaProblem } from '../settings.js';
@@ -140,7 +140,7 @@ export function measureBlockReason({ manual = false } = {}) {
     if (!settings.endpoint) {
         return 'No endpoint is set.';
     }
-    if (!settings.apiKey) {
+    if (!hasKey(settings)) {
         return 'No API key is set.';
     }
     return '';
@@ -207,7 +207,7 @@ export function status() {
     if (!settings.endpoint) {
         return { kind: 'config', text: 'No endpoint', next: 'Set an endpoint in Settings.' };
     }
-    if (!settings.apiKey) {
+    if (!hasKey(settings)) {
         return { kind: 'nokey', text: 'No API key', next: 'Paste the key for your host and press Test.' };
     }
     if (state.lastError) {

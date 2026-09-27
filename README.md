@@ -1,4 +1,26 @@
-# Jeved
+# Jeved (Rout + Repeats fork)
+
+This is a fork of [mossyfield/ST-jeved](https://github.com/mossyfield/ST-jeved). It adds two things
+and changes nothing else:
+
+- Host "Rout (jev-sensors plugin)": Jev through [rout.my](https://rout.my), model `typesafe/jev-latest`.
+  The call goes to the `jev-sensors` server plugin of your own SillyTavern
+  (`/api/plugins/jev-sensors/systemone`), which holds the Rout key. The key never reaches the browser,
+  and the route works with basic authentication, where the CORS proxy does not. Leave the API key
+  field empty. The plugin is in [`plugin/jev-sensors/`](plugin/jev-sensors/) of this repository:
+  copy that folder to `plugins/` of your SillyTavern, set `enableServerPlugins: true` in
+  `config.yaml`, save your Rout key in the SillyTavern API key manager as a custom key whose label
+  starts with `rout`, and restart. The plugin also serves the older jev-sensors strip extension.
+- Repeats tab, `{{jeved-repeats}}` and `/jeved-repeats`: plain counting over the last 60 narrator
+  replies of the open chat. It lists the phrases, reply openers and stock constructions that come
+  back across different replies, with no API call. The macro gives one sentence that names the hot
+  phrases (frequent and seen in the last 10 replies), or the bare list with `{{jeved-repeats::list}}`.
+  The Echo rule of the Director preset puts that sentence into its instruction. "Restore built-in"
+  on the Settings tab picks it up in a preset you already had.
+
+Install with `https://github.com/derryanna/ST-jeved` in place of the upstream URL below.
+
+---
 
 Jeved is a SillyTavern extension. It sends chat messages to Jev, a small decision model, with
 questions that you write. A rule reads the answers and acts: it adds one instruction to the prompt,
@@ -22,8 +44,8 @@ Needs SillyTavern 1.18.0 or later.
 3. Press Test. Jeved makes one small call to check the key.
 4. Tick "Enabled".
 
-"Open Jeved", the wand menu and `/jeved` open the workspace. It has five tabs: Rules, Sensors, Lists,
-Activity, Settings. The built-in preset is Director. Open its rules to read what each one does.
+"Open Jeved", the wand menu and `/jeved` open the workspace. It has six tabs: Rules, Sensors, Lists,
+Repeats, Activity, Settings. The built-in preset is Director. Open its rules to read what each one does.
 
 ## Sensors
 
@@ -155,8 +177,8 @@ must follow, such as "No time skips." House rule rerolls a reply that breaks an 
 
 ## Hosts, cost and privacy
 
-- The host picker sets the endpoint and the model for OpenRouter, NanoGPT and TypeSafe. "Custom"
-  lets you type your own.
+- The host picker sets the endpoint and the model for OpenRouter, NanoGPT, TypeSafe and Rout (through
+  the jev-sensors plugin, see the top of this file). "Custom" lets you type your own.
 - TypeSafe needs the SillyTavern CORS proxy: set `enableCorsProxy: true` in `config.yaml`. This
   does not work with basic authentication.
 - OpenRouter reports cost. The other hosts report tokens. A reply costs a fraction of a cent.

@@ -2,6 +2,7 @@ import { JEVED_UPDATED } from '../engine.js';
 import { activityTab } from './activity-tab.js';
 import { detach, node } from './dom.js';
 import { listsTab } from './lists-tab.js';
+import { repeatsTab } from './repeats-tab.js';
 import { rulesTab } from './rules-tab.js';
 import { settingsTab } from './settings-tab.js';
 import { sensorsTab } from './sensors-tab.js';
@@ -10,6 +11,7 @@ export const TABS = [
     { name: 'rules', label: 'Rules', make: rulesTab },
     { name: 'sensors', label: 'Sensors', make: sensorsTab },
     { name: 'lists', label: 'Lists', make: listsTab },
+    { name: 'repeats', label: 'Repeats', make: repeatsTab },
     { name: 'activity', label: 'Activity', make: activityTab },
     { name: 'settings', label: 'Settings', make: settingsTab },
 ];

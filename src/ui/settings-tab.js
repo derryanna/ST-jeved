@@ -1,6 +1,6 @@
 import { BUILT_IN, builtInPreset } from '../defaults.js';
 import { sensorLabel } from '../sensor-types.js';
-import { endpointWarning } from '../classifier.js';
+import { endpointWarning, hasKey, keylessHost } from '../classifier.js';
 import { describeError, isPaused, lastErrorKind, measureBlockReason, measuredCount, nextMessageGroups, nextReplyGroups, scriptParser, sessionCost, sessionTokens, testConnection } from '../engine.js';
 import { CONTEXT_CAP, TIMEOUT_MS } from '../limits.js';
 import { exportFileName, exportPreset, importPreset, isReservedKey, uniqueName } from '../presets.js';
@@ -27,7 +27,7 @@ function boundField(target, key, { type = 'text', min, max, step } = {}) {
 }
 
 function connected() {
-    return !!getSettings().apiKey && !lastErrorKind() && (tested || measuredCount() > 0);
+    return hasKey(getSettings()) && !lastErrorKind() && (tested || measuredCount() > 0);
 }
 
 export function settingsTab(host) {
@@ -127,7 +127,9 @@ export function settingsTab(host) {
                 current.apiKey = value;
                 saveSettings();
                 host.refreshOthers();
-            }), actions(withReason(testButton, paused ? measureBlockReason() : ''))), 'Jeved stores the key as plain text in your SillyTavern settings file, so use a key you can revoke.'),
+            }), actions(withReason(testButton, paused ? measureBlockReason() : ''))), keylessHost(settings.endpoint)
+                ? 'This host keeps its key on the server, in the jev-sensors plugin. Leave this field empty.'
+                : 'Jeved stores the key as plain text in your SillyTavern settings file, so use a key you can revoke.'),
             formRow('Host', hosts.element),
             formRow('Endpoint', column('', endpointField, insecure)),
             formRow('Model', modelField),

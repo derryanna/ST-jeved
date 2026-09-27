@@ -1150,3 +1150,19 @@
     gap: 0 18px;
     align-items: start;
 }
+
+/* Repeats tab (fork): mined phrases of the open chat */
+.jeved-repeats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    margin: 4px 0 10px;
+}
+
+.jeved-repeat {
+    opacity: 0.65;
+}
+
+.jeved-chip--warn.jeved-repeat {
+    opacity: 1;
+}

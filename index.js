@@ -4,6 +4,7 @@ import { momentCount } from './src/sensors.js';
 import { MESSAGE_MOMENT } from './src/store.js';
 import { askOnce, cancelRescan, describeError, forceRule, initEngine, invalidateMeasured, isRescanning, measureBlockReason, notify, onCharacterMessage, onChatChanged, planMeasurement, rescan, saveChatSoon, scriptRun, runTarget, setPaused } from './src/engine.js';
 import { answerText, askSensor, initMacros } from './src/macros.js';
+import { repeatsText } from './src/repeats.js';
 import { getPreset, initSettings } from './src/settings.js';
 import { toast } from './src/toast.js';
 import { initBadges, refreshBadges } from './src/ui/badge.js';
@@ -120,7 +121,7 @@ function addListCommands() {
 function addCommands() {
     context.SlashCommandParser.addCommandObject(context.SlashCommand.fromProps({
         name: 'jeved',
-        helpString: 'Open the Jeved workspace. Give a tab name to open that tab: rules, sensors, lists, activity or settings.',
+        helpString: 'Open the Jeved workspace. Give a tab name to open that tab: rules, sensors, lists, repeats, activity or settings.',
         returns: 'the tab that was opened',
         unnamedArgumentList: [
             context.SlashCommandArgument.fromProps({
@@ -211,6 +212,22 @@ function addCommands() {
     }));
 
     addListCommands();
+
+    context.SlashCommandParser.addCommandObject(context.SlashCommand.fromProps({
+        name: 'jeved-repeats',
+        helpString: 'Return the phrases and reply openers that came back in several recent narrator replies of this chat. Plain counting, no API call. Empty while nothing hot repeats.',
+        returns: 'one sentence for an instruction, or the bare list with list',
+        unnamedArgumentList: [
+            context.SlashCommandArgument.fromProps({
+                description: 'list for the bare phrases',
+                typeList: [context.ARGUMENT_TYPE.STRING],
+                isRequired: false,
+                defaultValue: '',
+                enumList: [new context.SlashCommandEnumValue('list')],
+            }),
+        ],
+        callback: (_args, value) => repeatsText(value ?? ''),
+    }));
 
     context.SlashCommandParser.addCommandObject(context.SlashCommand.fromProps({
         name: 'jeved-ask',

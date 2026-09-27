@@ -3,14 +3,17 @@ import { blankSensor } from './defaults.js';
 import { MESSAGES } from './limits.js';
 import { entryKey, listResolver } from './lists.js';
 import { NOUL, entryText, findSensor, isKnownType, macroText, repeatOf, typeIds } from './sensor-types.js';
+import { repeatsText } from './repeats.js';
 import { getPreset } from './settings.js';
 import { currentChat, latestScores } from './store.js';
 import { clamp } from './util.js';
 
 const MACRO_NAME = 'jeved';
 const LIST_MACRO_NAME = 'jeved-list';
+const REPEATS_MACRO_NAME = 'jeved-repeats';
 const REFERENCE = /\{\{jeved::([A-Za-z0-9_]+)(?:::([^{}]*))?\}\}/g;
 const LIST_REFERENCE = /\{\{jeved-list::([A-Za-z0-9_]+)\}\}/g;
+const REPEATS_REFERENCE = /\{\{jeved-repeats(?:::([^{}]*))?\}\}/g;
 const TRUE_WORDS = ['true', 'on', 'yes', '1'];
 
 export function answerText(sensorId, entry = '') {
@@ -47,7 +50,8 @@ export function fillMacros(text) {
     }
     return String(text ?? '')
         .replace(REFERENCE, (whole, id, entry) => answerText(id, entry ?? ''))
-        .replace(LIST_REFERENCE, (whole, name) => listText(name));
+        .replace(LIST_REFERENCE, (whole, name) => listText(name))
+        .replace(REPEATS_REFERENCE, (whole, mode) => repeatsText(mode ?? ''));
 }
 
 export function initMacros() {
@@ -74,6 +78,14 @@ export function initMacros() {
         returns: 'the entries, or an empty text when the list is empty',
         exampleUsage: ['{{jeved-list::rules}}'],
         handler: ({ unnamedArgs }) => listText(unnamedArgs?.[0]),
+    });
+    macros.register(REPEATS_MACRO_NAME, {
+        category: macros.category?.MISC ?? 'misc',
+        unnamedArgs: [{ name: 'mode', optional: true, description: 'list for the bare phrases; empty for one sentence to put in an instruction.' }],
+        description: 'The phrases and reply openers that came back in several recent narrator replies of this chat. Plain counting, no API call. Empty while nothing hot repeats.',
+        returns: 'one sentence naming the phrases to avoid, or the bare list',
+        exampleUsage: ['{{jeved-repeats}}', '{{jeved-repeats::list}}'],
+        handler: ({ unnamedArgs }) => repeatsText(unnamedArgs?.[0] ?? ''),
     });
     return true;
 }
