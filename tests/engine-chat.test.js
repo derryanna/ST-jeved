@@ -952,6 +952,23 @@ describe('what a finished reroll reports', () => {
         assert.notEqual(chipFor('swipeBusy').next, chipFor('swipe').next);
         engine.setErrorText('', '');
     });
+
+    it('tells a keyless host where its key lives, and repeats a set-up error as the next step', () => {
+        setChat('a', [user('u0'), narrator('c0')]);
+        const settings = getSettings();
+        const endpoint = settings.endpoint;
+        engine.setErrorText('bad key', 'key');
+        assert.equal(status().text, 'Key rejected');
+        assert.match(status().next, /^Paste a new key and press Test\./);
+        settings.endpoint = '/api/plugins/jev-sensors/systemone';
+        assert.equal(status().text, 'Key rejected');
+        assert.match(status().next, /^Save a Rout key in the API key manager/);
+        engine.setErrorText('The jev-sensors plugin did not answer.', 'config');
+        assert.equal(status().text, 'Not set up');
+        assert.equal(status().next, "The jev-sensors plugin did not answer. Your chat isn't affected.");
+        settings.endpoint = endpoint;
+        engine.setErrorText('', '');
+    });
 });
 
 describe('the pre-pass in the interceptor', () => {

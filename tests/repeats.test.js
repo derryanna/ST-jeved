@@ -94,6 +94,15 @@ describe('the repeats of the open chat', () => {
         forgetRepeats();
         assert.notEqual(chatRepeats(), again);
     });
+
+    it('recounts when a reply in the middle of the chat is edited', () => {
+        context.chat = replies.map(narrator);
+        const before = chatRepeats();
+        context.chat[1].mes = fillers[1].repeat(3);
+        const after = chatRepeats();
+        assert.notEqual(after, before);
+        assert.equal(after.phrases.find(item => item.text === 'широкая ладонь').df, 3);
+    });
 });
 
 describe('the {{jeved-repeats}} macro', () => {

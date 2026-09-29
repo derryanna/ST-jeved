@@ -30,6 +30,8 @@ export const HOSTS = [
         model: 'typesafe/jev-latest',
         keyless: true,
         hint: 'This route goes through the jev-sensors server plugin of this SillyTavern, which holds the Rout key. Leave the API key empty.',
+        missing: 'The jev-sensors plugin did not answer. Copy plugin/jev-sensors from the Jeved folder to plugins/ of your SillyTavern, set enableServerPlugins: true in config.yaml, and restart SillyTavern.',
+        keyNext: 'Save a Rout key in the API key manager of SillyTavern, or set ROUT_API_KEY, and press Test.',
     },
 ];
 
@@ -79,8 +81,8 @@ function kindFor(status) {
     return 'other';
 }
 
-function messageFor(kind, fallback) {
-    if (kind === 'key') {
+function messageFor(kind, fallback, host) {
+    if (kind === 'key' && !host?.keyless) {
         return 'The API key was rejected.';
     }
     if (kind === 'credit') {
@@ -220,6 +222,7 @@ export async function classify({ endpoint, apiKey, model, state, questions, time
         throw new ClassifierError('No API key is set.', 'config');
     }
 
+    const host = hostOf(endpoint);
     const controller = new AbortController();
     const forward = () => controller.abort();
     const timer = setTimeout(forward, timeoutMs);
@@ -239,6 +242,9 @@ export async function classify({ endpoint, apiKey, model, state, questions, time
             await wait(RETRY_DELAY, controller.signal);
             response = await send(call);
         }
+        if (response.status === 404 && host?.missing) {
+            throw new ClassifierError(host.missing, 'config');
+        }
         const data = await readBody(response, call);
 
         const problem = errorFrom(data);
@@ -246,7 +252,7 @@ export async function classify({ endpoint, apiKey, model, state, questions, time
             const code = problem?.code;
             const kind = kindFor(typeof code === 'number' && Number.isFinite(code) ? code : response.status);
             throw new ClassifierError(
-                messageFor(kind, String(problem?.message ?? '') || `The endpoint returned ${response.status}.`),
+                messageFor(kind, String(problem?.message ?? '') || `The endpoint returned ${response.status}.`, host),
                 kind,
             );
         }

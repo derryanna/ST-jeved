@@ -6,7 +6,7 @@
     "js": "index.js",
     "css": "style.css",
     "author": "Jeved contributors, Rout + Repeats fork by derryanna",
-    "version": "0.4.1-rout.1",
+    "version": "0.4.1-rout.2",
     "homePage": "https://github.com/derryanna/ST-jeved",
     "auto_update": true,
     "minimum_client_version": "1.18.0",

@@ -219,6 +219,9 @@ describe('hosts', () => {
         assert.equal(hasKey({ apiKey: '', endpoint: rout.endpoint }), true);
         assert.equal(hasKey({ apiKey: '', endpoint: provider.defaults.endpoint }), false);
         assert.equal(hasKey({ apiKey: 'k', endpoint: provider.defaults.endpoint }), true);
+        assert.deepEqual(HOSTS.filter(host => host.missing || host.keyNext).map(host => host.id), ['rout']);
+        assert.match(rout.missing, /enableServerPlugins/);
+        assert.match(rout.keyNext, /API key manager/);
     });
 });
 
@@ -241,6 +244,39 @@ describe('a keyless host', () => {
         const error = await fails(() => classify({ ...base, apiKey: '' }));
         assert.equal(error?.message, 'No API key is set.');
         assert.equal(errorKind(error), 'config');
+    });
+
+    const notFound = async () => ({ ok: false, status: 404, json: async () => { throw new Error('html'); } });
+
+    it('names the missing plugin when its route answers 404', async () => {
+        globalThis.fetch = notFound;
+        const error = await fails(() => classify({ ...base, apiKey: '', endpoint: rout }));
+        assert.equal(error?.message, hostOf(rout).missing);
+        assert.equal(errorKind(error), 'config');
+    });
+
+    it('keeps a 404 from a keyed host as a plain failure', async () => {
+        globalThis.fetch = notFound;
+        const error = await fails(() => classify(base));
+        assert.equal(error?.message, 'The endpoint returned 404 without JSON.');
+        assert.equal(errorKind(error), 'other');
+    });
+
+    it('passes the message of the plugin through on a key error, where a keyed host gets the fixed text', async () => {
+        globalThis.fetch = reply({ error: 'The plugin found no key.' }, { status: 401 });
+        const keyless = await fails(() => classify({ ...base, apiKey: '', endpoint: rout }));
+        assert.equal(keyless?.message, 'The plugin found no key.');
+        assert.equal(errorKind(keyless), 'key');
+        const keyed = await fails(() => classify(base));
+        assert.equal(keyed?.message, 'The API key was rejected.');
+        assert.equal(errorKind(keyed), 'key');
+    });
+
+    it('falls back to the status when the plugin sends a key error without a message', async () => {
+        globalThis.fetch = reply({}, { status: 403 });
+        const error = await fails(() => classify({ ...base, apiKey: '', endpoint: rout }));
+        assert.equal(error?.message, 'The endpoint returned 403.');
+        assert.equal(errorKind(error), 'key');
     });
 });
 

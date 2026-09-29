@@ -1,24 +1,87 @@
 # Jeved (Rout + Repeats fork)
 
-This is a fork of [mossyfield/ST-jeved](https://github.com/mossyfield/ST-jeved). It adds two things
-and changes nothing else:
+This is a fork of [mossyfield/ST-jeved](https://github.com/mossyfield/ST-jeved). It is the same
+extension with two additions:
 
-- Host "Rout (jev-sensors plugin)": Jev through [rout.my](https://rout.my), model `typesafe/jev-latest`.
-  The call goes to the `jev-sensors` server plugin of your own SillyTavern
-  (`/api/plugins/jev-sensors/systemone`), which holds the Rout key. The key never reaches the browser,
-  and the route works with basic authentication, where the CORS proxy does not. Leave the API key
-  field empty. The plugin is in [`plugin/jev-sensors/`](plugin/jev-sensors/) of this repository:
-  copy that folder to `plugins/` of your SillyTavern, set `enableServerPlugins: true` in
-  `config.yaml`, save your Rout key in the SillyTavern API key manager as a custom key whose label
-  starts with `rout`, and restart. The plugin also serves the older jev-sensors strip extension.
-- Repeats tab, `{{jeved-repeats}}` and `/jeved-repeats`: plain counting over the last 60 narrator
-  replies of the open chat. It lists the phrases, reply openers and stock constructions that come
-  back across different replies, with no API call. The macro gives one sentence that names the hot
-  phrases (frequent and seen in the last 10 replies), or the bare list with `{{jeved-repeats::list}}`.
-  The Echo rule of the Director preset puts that sentence into its instruction. "Restore built-in"
-  on the Settings tab picks it up in a preset you already had.
+- **Rout as a host.** Jev through [rout.my](https://rout.my), model `typesafe/jev-latest`. The call
+  goes through `jev-sensors`, a small server plugin that runs inside your own SillyTavern and holds
+  the Rout key. The key never reaches the browser. The route works behind basic authentication and
+  with user accounts, where the CORS proxy does not, and each account uses its own key.
+- **Repeats tab**, `{{jeved-repeats}}` and `/jeved-repeats`. Plain counting over the last 60 narrator
+  replies of the open chat: the phrases, reply openers and stock constructions that come back across
+  different replies. No API call. The macro gives one sentence that names the hot phrases (frequent
+  and seen in the last 10 replies), or the bare list with `{{jeved-repeats::list}}`. The Echo rule of
+  the Director preset puts that sentence into its instruction. "Restore built-in" on the Settings tab
+  picks it up in a preset you already had.
 
-Install with `https://github.com/derryanna/ST-jeved` in place of the upstream URL below.
+Everything else is upstream Jeved. Its documentation follows the fork sections.
+
+## Install the fork
+
+1. Extensions panel > "Install extension" > paste `https://github.com/derryanna/ST-jeved`.
+2. For OpenRouter, NanoGPT or TypeSafe, follow the upstream [Install](#install) section below. The
+   plugin is not needed.
+3. For Rout, install the plugin as the next section says. Then, in the Jeved drawer, pick the host
+   "Rout (jev-sensors plugin)", leave the API key field empty, and press Test.
+
+SillyTavern updates the extension from this repository. The plugin folder under `plugins/` is a
+copy, so copy it again when an update changes `plugin/jev-sensors/`. A symbolic link follows updates
+by itself.
+
+## Install the jev-sensors plugin
+
+The plugin is one file, [`plugin/jev-sensors/index.mjs`](plugin/jev-sensors/index.mjs), with no
+dependencies. SillyTavern loads it from the `plugins/` folder next to `config.yaml`.
+
+1. Copy the folder `plugin/jev-sensors` from the extension folder,
+   `data/<user>/extensions/ST-jeved/plugin/jev-sensors`, to `plugins/jev-sensors` of your
+   SillyTavern install.
+2. In `config.yaml`, set `enableServerPlugins: true`.
+3. Give the plugin your Rout key, in one of two ways.
+   - In SillyTavern, on API Connections, set the API to Chat Completion and the source to
+     Custom (OpenAI-compatible). Press the key manager button next to the API key field, add the
+     Rout key, and type a label that starts with `rout` in the "Label (optional)" box. You can
+     switch the API back afterwards; the key stays. It does not need to be the active key of that
+     source. Every user account holds its own key.
+   - Or set the environment variable `ROUT_API_KEY` for the SillyTavern process. It applies to
+     every account and is used when no labelled key is found.
+4. Restart SillyTavern. The server log lists `Jev sensors` among the loaded plugins.
+5. In the Jeved drawer, pick "Rout (jev-sensors plugin)", leave the API key field empty, and press
+   Test.
+
+What Test can say, and what to do:
+
+| Message | What to do |
+| --- | --- |
+| `The endpoint answered with ...` | Done. Tick Enabled. |
+| `The jev-sensors plugin did not answer.` | The plugin is not loaded. Check the folder name under `plugins/`, `enableServerPlugins: true`, and that SillyTavern was restarted. Read the server log. |
+| `The jev-sensors plugin found no Rout key.` | Step 3. The label must start with `rout` and the value must not be empty. |
+| `Rout rejected the key stored in the jev-sensors plugin.` | The key is wrong or revoked. Save a new one. |
+| `Rout answered 5xx without JSON.` | Rout is down or behind a maintenance page. Try again later. |
+| `Rout did not answer in time.` or `The request timed out.` | Rout was slow. Raise "Timeout" on the Settings tab, or try again. |
+
+The status chip in the drawer shows the same problems while Jeved measures: "Not set up" with the
+plugin message when the plugin does not answer, "Key rejected" when it has no usable key.
+
+How the call works: Jeved sends the same body it would send to TypeSafe, to
+`/api/plugins/jev-sensors/systemone` of your own SillyTavern, with the SillyTavern CSRF token and no
+Authorization header. The plugin reads the key of the requesting account from that account's
+`secrets.json`, adds the header, forwards the body to `https://api.rout.my/v1/systemone`, and returns
+the answer with the token counts under the names Jeved reads. Nothing is stored on the server for
+this route.
+
+The plugin also serves `/ask` and `/hist` for the older jev-sensors strip extension. Those keep a
+per-chat history in `data/<user>/jev-sensors/`, outside the chat files.
+
+## Repeats
+
+- The Repeats tab lists the phrases, reply openers and constructions of the open chat. "×N" is the
+  number of different replies a phrase appears in. A highlighted phrase was in one of the last 10.
+- "Copy list" copies the hot phrases, one per line, for a ban list. "Recount" mines the chat again.
+- `{{jeved-repeats}}` is empty while nothing is both frequent and recent, so a rule can carry it
+  without saying anything on a fresh chat.
+- The count reads narrator replies of 200 characters or more, skips OOC notes, and drops hidden
+  blocks, HTML and tracker lines before it counts.
 
 ---
 

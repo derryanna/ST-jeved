@@ -134,7 +134,7 @@ let cache = { key: '', report: null };
 
 export function chatRepeats(chat = currentChat()) {
     const texts = narratorTexts(chat);
-    const key = `${texts.length}:${hashText(texts[texts.length - 1] ?? '')}:${hashText(texts[0] ?? '')}`;
+    const key = `${texts.length}:${hashText(texts.join('\n'))}`;
     if (cache.key !== key) {
         cache = { key, report: mineRepeats(texts) };
     }

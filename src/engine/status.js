@@ -1,4 +1,4 @@
-import { errorKind, hasKey } from '../classifier.js';
+import { errorKind, hasKey, hostOf } from '../classifier.js';
 import { listResolver } from '../lists.js';
 import { measuredSensors, missingIds, momentOf, sensorSignature } from '../sensors.js';
 import { getPreset, getSettings, schemaProblem } from '../settings.js';
@@ -192,6 +192,16 @@ export function measuredCount() {
     return value;
 }
 
+function nextStep(detail, settings) {
+    if (state.lastErrorKind === 'config') {
+        return state.lastError;
+    }
+    if (state.lastErrorKind === 'key') {
+        return hostOf(settings.endpoint)?.keyNext ?? detail.next;
+    }
+    return detail.next;
+}
+
 export function status() {
     const problem = schemaProblem();
     if (problem) {
@@ -212,7 +222,7 @@ export function status() {
     }
     if (state.lastError) {
         const detail = ERROR_TEXT[state.lastErrorKind] ?? ERROR_TEXT.other;
-        return { kind: 'error', text: detail.text, next: `${detail.next} Your chat isn't affected.` };
+        return { kind: 'error', text: detail.text, next: `${nextStep(detail, settings)} Your chat isn't affected.` };
     }
     if (state.rerolling) {
         return { kind: 'working', text: 'Rerolling', next: '' };

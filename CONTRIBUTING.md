@@ -2,10 +2,12 @@
 
 ## Set up
 
-- Clone `https://github.com/mossyfield/ST-jeved` into `data/<your user>/extensions/ST-jeved` of your
-  SillyTavern install.
+- Clone `https://github.com/derryanna/ST-jeved` (this fork) or `https://github.com/mossyfield/ST-jeved`
+  (upstream) into `data/<your user>/extensions/ST-jeved` of your SillyTavern install.
 - There is no build step and there are no dependencies.
 - Reload SillyTavern in the browser to load a change.
+- The server plugin, `plugin/jev-sensors/index.mjs`, runs in Node inside SillyTavern. Link or copy
+  it to `plugins/jev-sensors` and restart SillyTavern to load a change to it.
 
 ## Run the tests
 
@@ -23,6 +25,10 @@
   `index.js`, `src/ui`, `src/engine`, `src/engine.js`, `src/settings.js`, `src/store.js`,
   `src/instructions.js`, `src/macros.js` and `src/toast.js`. A pure module that needs the host takes
   it as an argument, as `src/reroll.js` does.
+- The plugin reaches the file system and `fetch`, nothing else. It takes the data folder of the
+  requesting user from `request.user.directories.root`, never from a fixed path, and it has no
+  dependencies. `tests/plugin.test.js` drives it with a fake router, a temporary secrets file and a
+  stubbed `fetch`.
 - Use an existing helper before you write a new one. Shared numbers are in `src/limits.js`. Shared
   functions are in `src/util.js`.
 - User-facing text: short noun labels, the unit in the label, few hints, one plain sentence for each
@@ -51,8 +57,10 @@
   manager has a row for it, and to the cut order when the token cap may drop it.
 - A host. If it uses the same wire format, add one entry to `HOSTS` in `src/classifier.js`. A host
   that blocks browser calls needs a SillyTavern proxy route as its `endpoint` and a `hint` that says
-  so. The TypeSafe entry is the example. A different wire format needs a second `provider` object in
-  the same file, a provider picker in Settings, and generic text where the UI names Jev.
+  so. The TypeSafe entry is the example. A host whose key stays on the server sets `keyless: true`,
+  `missing` (the message for a 404 from its route) and `keyNext` (the next step the chip shows on a
+  key error). The Rout entry is the example. A different wire format needs a second `provider`
+  object in the same file, a provider picker in Settings, and generic text where the UI names Jev.
 - A preset field. Add its default to `blankSensor` or `blankRule` in `src/defaults.js`. Import keeps
   only the fields that are there. Raise `SCHEMA_VERSION` in `src/limits.js`. Add one entry to
   `MIGRATIONS` in `src/presets.js`, keyed by the version you migrate from, that gives older presets
@@ -61,8 +69,10 @@
 
 ## Propose a change
 
-- For a bug, open an issue at `https://github.com/mossyfield/ST-jeved/issues`. Write what you did,
-  what happened, what you expected, and what the status chip showed. Give your SillyTavern version,
-  your browser, and the console output.
+- For a bug in the Rout host, the plugin or the Repeats tab, open an issue at
+  `https://github.com/derryanna/ST-jeved/issues`. For anything else, open it upstream at
+  `https://github.com/mossyfield/ST-jeved/issues`. Write what you did, what happened, what you
+  expected, and what the status chip showed. Give your SillyTavern version, your browser, and the
+  console output. For the plugin, add the server log lines that name `jev-sensors`.
 - For a feature, open an issue first. Send a pull request with one change and its tests.
 - Do not paste your API key. Read each preset or chat excerpt before you paste it.

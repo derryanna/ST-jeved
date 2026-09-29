@@ -1,23 +1,84 @@
-// Jev sensors: server side. Keeps the Rout key out of the browser, holds the question set,
-// stores per-chat history next to the ST data (NOT inside chat files).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-const DATA = path.join(process.cwd(), 'data', 'default-user');
-const STORE = path.join(DATA, 'jev-sensors');
 const ENDPOINT = 'https://api.rout.my/v1/systemone';
 const MODEL = 'typesafe/jev-latest';
 const KEEP = 60;
+const SECRETS_FILE = 'secrets.json';
+const CUSTOM_KEYS = 'api_key_custom';
+const KEY_LABEL = 'rout';
+const KEY_ENV = 'ROUT_API_KEY';
+const PASS_TIMEOUT_MS = 60000;
+const ASK_TIMEOUT_MS = 20000;
 
-export const info = { id: 'jev-sensors', name: 'Jev sensors', description: 'Scores the latest reply with TypeSafe Jev via Rout.' };
+export const info = {
+    id: 'jev-sensors',
+    name: 'Jev sensors',
+    description: 'Holds the Rout key for the Jeved extension and scores replies with TypeSafe Jev through Rout.',
+};
 
-function routKey() {
-    const sec = JSON.parse(fs.readFileSync(path.join(DATA, 'secrets.json'), 'utf8'));
-    const list = Array.isArray(sec.api_key_custom) ? sec.api_key_custom : [];
-    const hit = list.find(k => String(k.label || '').toLowerCase().startsWith('rout'));
-    if (!hit?.value) throw new Error('no Rout key in secrets.json');
-    return hit.value;
+export const NO_KEY = 'The jev-sensors plugin found no Rout key. In SillyTavern, open the API key manager, add a custom key whose label starts with "rout" and paste your Rout key as its value. Or set ROUT_API_KEY for the SillyTavern process.';
+export const KEY_REJECTED = 'Rout rejected the key stored in the jev-sensors plugin. Save a new one in the API key manager and press Test.';
+export const NO_ANSWER = 'Rout did not answer in time.';
+
+export function userRoot(req) {
+    const own = req?.user?.directories?.root;
+    if (typeof own === 'string' && own) {
+        return own;
+    }
+    const dataRoot = typeof globalThis.DATA_ROOT === 'string' && globalThis.DATA_ROOT
+        ? globalThis.DATA_ROOT
+        : path.join(process.cwd(), 'data');
+    return path.join(dataRoot, 'default-user');
+}
+
+function labelledKeys(root) {
+    let secrets;
+    try {
+        secrets = JSON.parse(fs.readFileSync(path.join(root, SECRETS_FILE), 'utf8'));
+    } catch {
+        return [];
+    }
+    const list = Array.isArray(secrets?.[CUSTOM_KEYS]) ? secrets[CUSTOM_KEYS] : [];
+    return list.filter(item => item
+        && typeof item.value === 'string' && item.value
+        && String(item.label ?? '').trim().toLowerCase().startsWith(KEY_LABEL));
+}
+
+export function routKey(root) {
+    const named = labelledKeys(root);
+    const hit = named.find(item => item.active) ?? named[named.length - 1];
+    return hit?.value || String(process.env[KEY_ENV] ?? '').trim();
+}
+
+const isRecord = value => !!value && typeof value === 'object' && !Array.isArray(value);
+const str = (value, cap) => String(value ?? '').slice(0, cap);
+
+export function normaliseUsage(data) {
+    const usage = data?.usage;
+    if (isRecord(usage) && usage.input_tokens == null && usage.prompt_tokens != null) {
+        usage.input_tokens = usage.prompt_tokens;
+        usage.output_tokens = usage.completion_tokens ?? 0;
+    }
+    return data;
+}
+
+async function askRout(key, body, timeoutMs) {
+    const response = await fetch(ENDPOINT, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+    });
+    return { status: response.status, ok: response.ok, text: await response.text() };
+}
+
+function failure(error) {
+    if (error?.name === 'TimeoutError' || error?.name === 'AbortError') {
+        return { status: 504, body: { error: NO_ANSWER } };
+    }
+    return { status: 502, body: { error: str(error?.message || error, 200) } };
 }
 
 function questions(user, hasIntent) {
@@ -42,59 +103,67 @@ function questions(user, hasIntent) {
     return q;
 }
 
-const fileFor = chatId => path.join(STORE, crypto.createHash('sha1').update(String(chatId)).digest('hex') + '.json');
-function load(chatId) {
-    try { return JSON.parse(fs.readFileSync(fileFor(chatId), 'utf8')); } catch { return { chat: String(chatId), hist: [] }; }
-}
-function save(chatId, doc) {
-    fs.mkdirSync(STORE, { recursive: true });
-    fs.writeFileSync(fileFor(chatId), JSON.stringify(doc));
-}
-const str = (v, cap) => String(v ?? '').slice(0, cap);
+const storeDir = req => path.join(userRoot(req), 'jev-sensors');
+const fileFor = (req, chatId) => path.join(storeDir(req), `${crypto.createHash('sha1').update(String(chatId)).digest('hex')}.json`);
 
-// Rout usage comes back in OpenAI names on some days; Jeved reads input_tokens/output_tokens.
-function normaliseUsage(data) {
-    const u = data?.usage;
-    if (u && typeof u === 'object' && u.input_tokens == null && u.prompt_tokens != null) {
-        u.input_tokens = u.prompt_tokens;
-        u.output_tokens = u.completion_tokens ?? 0;
+function load(req, chatId) {
+    try {
+        return JSON.parse(fs.readFileSync(fileFor(req, chatId), 'utf8'));
+    } catch {
+        return { chat: String(chatId), hist: [] };
     }
-    return data;
+}
+
+function save(req, chatId, doc) {
+    fs.mkdirSync(storeDir(req), { recursive: true });
+    fs.writeFileSync(fileFor(req, chatId), JSON.stringify(doc));
 }
 
 export async function init(router) {
-    // Pass-through for the Jeved extension (derryanna/ST-jeved, host "Rout (jev-sensors plugin)"):
-    // same systemone body, the key stays here, the answer goes back untouched.
     router.post('/systemone', async (req, res) => {
         const b = req.body || {};
-        if (!b.state || typeof b.state !== 'object' || !b.questions || typeof b.questions !== 'object') {
+        if (!isRecord(b.state) || !isRecord(b.questions)) {
             return res.status(400).json({ error: 'state and questions required' });
+        }
+        const key = routKey(userRoot(req));
+        if (!key) {
+            return res.status(401).json({ error: NO_KEY });
         }
         const model = typeof b.model === 'string' && b.model.trim() ? b.model.trim() : MODEL;
         try {
-            const r = await fetch(ENDPOINT, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + routKey(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model, state: b.state, questions: b.questions }),
-                signal: AbortSignal.timeout(60000),
-            });
-            const text = await r.text();
+            const reply = await askRout(key, { model, state: b.state, questions: b.questions }, PASS_TIMEOUT_MS);
+            if (reply.status === 401 || reply.status === 403) {
+                return res.status(reply.status).json({ error: KEY_REJECTED });
+            }
             let data;
-            try { data = JSON.parse(text); } catch { return res.status(502).json({ error: `rout ${r.status} without JSON`, detail: text.slice(0, 300) }); }
-            res.status(r.status).json(normaliseUsage(data));
-        } catch (e) {
-            res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
+            try {
+                data = JSON.parse(reply.text);
+            } catch {
+                return res.status(502).json({ error: `Rout answered ${reply.status} without JSON.`, detail: reply.text.slice(0, 300) });
+            }
+            return res.status(reply.status).json(normaliseUsage(data));
+        } catch (error) {
+            const failed = failure(error);
+            return res.status(failed.status).json(failed.body);
         }
     });
 
     router.get('/hist', (req, res) => {
-        if (!req.query.chat) return res.status(400).json({ error: 'chat required' });
-        res.json(load(req.query.chat));
+        if (!req.query.chat) {
+            return res.status(400).json({ error: 'chat required' });
+        }
+        res.json(load(req, req.query.chat));
     });
 
     router.post('/ask', async (req, res) => {
         const b = req.body || {};
-        if (!b.chat || !b.latest) return res.status(400).json({ error: 'chat and latest required' });
+        if (!b.chat || !b.latest) {
+            return res.status(400).json({ error: 'chat and latest required' });
+        }
+        const key = routKey(userRoot(req));
+        if (!key) {
+            return res.status(401).json({ error: NO_KEY });
+        }
         const user = str(b.user, 60) || 'the player character';
         const intent = str(b.intent, 2500);
         const state = {
@@ -102,30 +171,38 @@ export async function init(router) {
             previous_messages: (Array.isArray(b.previous) ? b.previous : []).slice(-4).map(m => ({ from: m?.user ? user : 'narrator', text: str(m?.text, 1500) })),
             latest_reply: str(b.latest, 5000),
         };
-        if (intent) state.intent = intent;
+        if (intent) {
+            state.intent = intent;
+        }
         try {
             const t0 = Date.now();
-            const r = await fetch(ENDPOINT, {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + routKey(), 'Content-Type': 'application/json' },
-                body: JSON.stringify({ model: MODEL, state, questions: questions(user, !!intent) }),
-                signal: AbortSignal.timeout(20000),
-            });
-            const text = await r.text();
-            if (!r.ok) return res.status(502).json({ error: `rout ${r.status}`, detail: text.slice(0, 300) });
-            const a = JSON.parse(text).answers || {};
+            const reply = await askRout(key, { model: MODEL, state, questions: questions(user, !!intent) }, ASK_TIMEOUT_MS);
+            if (reply.status === 401 || reply.status === 403) {
+                return res.status(reply.status).json({ error: KEY_REJECTED });
+            }
+            if (!reply.ok) {
+                return res.status(502).json({ error: `Rout answered ${reply.status}.`, detail: reply.text.slice(0, 300) });
+            }
+            const answers = JSON.parse(reply.text).answers || {};
             const s = {};
-            for (const k of ['echo', 'change', 'fortune', 'tone']) if (typeof a[k]?.score === 'number') s[k] = +a[k].score.toFixed(2);
-            if (typeof a.forme?.noul === 'number') s.forme = +a.forme.noul.toFixed(2);
-            const doc = load(b.chat);
+            for (const k of ['echo', 'change', 'fortune', 'tone']) {
+                if (typeof answers[k]?.score === 'number') {
+                    s[k] = +answers[k].score.toFixed(2);
+                }
+            }
+            if (typeof answers.forme?.noul === 'number') {
+                s.forme = +answers.forme.noul.toFixed(2);
+            }
+            const doc = load(req, b.chat);
             const entry = { id: Number(b.id), sig: str(b.sig, 80), t: Date.now(), ms: Date.now() - t0, s };
-            doc.hist = doc.hist.filter(h => h.id !== entry.id && h.id < entry.id); // swipe/regenerate replaces, branch rewind drops the tail
+            doc.hist = doc.hist.filter(h => h.id !== entry.id && h.id < entry.id);
             doc.hist.push(entry);
             doc.hist = doc.hist.slice(-KEEP);
-            save(b.chat, doc);
+            save(req, b.chat, doc);
             res.json(doc);
-        } catch (e) {
-            res.status(502).json({ error: String(e?.message || e).slice(0, 200) });
+        } catch (error) {
+            const failed = failure(error);
+            res.status(failed.status).json(failed.body);
         }
     });
 }

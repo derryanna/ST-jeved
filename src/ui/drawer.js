@@ -1,4 +1,4 @@
-import { hasKey } from '../classifier.js';
+import { hasKey, keylessHost } from '../classifier.js';
 import { JEVED_UPDATED, describeError, isPaused, lastError, lastErrorKind, measureBlockReason, setPaused, status, testConnection } from '../engine.js';
 import { getSettings, normaliseSettings, saveSettings } from '../settings.js';
 import { toast } from '../toast.js';
@@ -65,12 +65,20 @@ function noteError() {
 
 function firstRun() {
     const block = node('div', 'info-block hint jeved-first-run');
-    const hosts = hostPicker({ id: 'jeved_first_host' }).element;
+    const title = text('div', 'jeved-first-title', '');
     const key = field('password', '', '', value => {
         getSettings().apiKey = value;
         saveSettings();
     });
     key.id = 'jeved_first_key';
+    const paint = () => {
+        const keyless = keylessHost(getSettings().endpoint);
+        title.textContent = keyless
+            ? 'This host keeps its key on the server. Press Test to check the jev-sensors plugin.'
+            : 'Pick a host and paste its API key to start.';
+        key.hidden = keyless;
+    };
+    const hosts = hostPicker({ id: 'jeved_first_host', onPick: paint }).element;
     const paused = isPaused();
     const testButton = button('Test', paused ? measureBlockReason() : 'Make one small call to check the key', async () => {
         if (isPaused()) {
@@ -89,8 +97,9 @@ function firstRun() {
     }, { variant: 'primary' });
     testButton.id = 'jeved_first_test';
 
+    paint();
     block.append(
-        text('div', 'jeved-first-title', 'Pick a host and paste its API key to start.'),
+        title,
         hosts,
         key,
         actions(withReason(testButton, paused ? measureBlockReason() : '')),
